@@ -1,0 +1,22 @@
+CENIX Technologies - setup (about 10 minutes, all free)
+
+Files: index.html (public site) | admin.html (admin) | shared.js | style.css | config.js | setup.sql
+
+1. Go to supabase.com, sign in, click "New project". Wait until it is ready.
+2. Left menu: SQL Editor > New query. Open setup.sql, copy everything, paste, click Run.
+3. Left menu: Authentication.
+   a) Sign In / Providers (or Settings): turn OFF "Allow new users to sign up".
+   b) Users > Add user > Create new user. Type YOUR email and a strong password,
+      tick "Auto confirm". This is your admin login.
+4. Project Settings > API: copy "Project URL" and the "anon public" key
+   into config.js (between the quotes). Newer dashboards call it the "publishable" key (sb_publishable_...). That works too.
+   NEVER use the service_role / secret key.
+5. Open admin.html (VS Code Live Server, or after deploying). Log in with your email and password.
+   Settings > "Add starter content" (adds the menu buttons and 4 sample lessons).
+6. Deploy the folder to Netlify (app.netlify.com/drop). From now on everything you add in
+   admin.html shows on the live site immediately. No export needed.
+
+Notes
+- Python lessons use Pyodide, downloaded from the internet the first time Run is pressed (about 10 MB).
+- Run works for HTML, CSS, JavaScript and Python. Java, C and SQL show code only.
+- Security is enforced by Supabase (login + row level security), not by the page.

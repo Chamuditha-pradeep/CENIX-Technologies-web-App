@@ -1,0 +1,38 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CENIX Technologies</title><link rel="stylesheet" href="style.css"></head><body>
+<header class="nav"><a class="brand" href="#home">CENIX</a><nav id="nv"></nav><div class="ctl"><select id="lg"></select><button class="ib" id="md" title="Dark / Light">🌓</button><span id="cl"></span></div></header>
+<main id="app"></main><footer id="ft"></footer><div class="modal" id="m"></div><div id="toast"></div>
+<script src="config.js"></script><script src="shared.js"></script>
+<script>
+const app=$('#app'),COL=['#0e8f4f','#2563eb','#7c3aed','#d9570b'];let D={sections:[],items:[],home:[],name:''},cur='home',cat='all',q='';
+const S=id=>D.sections.find(s=>s.id===id),sn=s=>L(s.name)||t(s.id)||s.id,live=()=>D.items.filter(p=>p.pub!==false);
+const fu=p=>p.file?pubUrl(p.file.path):'',cu=p=>p.cover?pubUrl(p.cover):'';
+function bar(){$('#nv').innerHTML=`<a href="#home" class="${cur==='home'?'on':''}">${t('home')}</a>`+D.sections.map(s=>s.type==='url'?`<a href="${esc(safe(s.url))}" target="_blank" rel="noopener">${esc(s.icon||'')} ${esc(sn(s))}</a>`:`<a href="#${s.id}" class="${s.id===cur?'on':''}">${esc(s.icon||'')} ${esc(sn(s))}</a>`).join('');
+ $('#lg').innerHTML=LN.map((n,i)=>`<option value="${i}"${i===lang?' selected':''}>${n}</option>`).join('');
+ $('#cl').innerHTML=COL.map(c=>`<button class="dot" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}
+function home(){const f=D.sections.find(s=>s.type==='learn');
+ app.innerHTML=`<section class="hero"><h1>CENIX <span>Technologies</span></h1><p class="tg">Building Tomorrow, Today.</p><p class="mu">${t('hero')}</p>${f?`<a class="btn" href="#${f.id}">${t('explore')}</a>`:''}</section>
+ <div class="tiles">${D.sections.filter(s=>s.type!=='url').map(s=>`<a class="tile" href="#${s.id}"><span>${esc(s.icon||'')}</span><b>${esc(sn(s))}</b><small>${live().filter(p=>p.sec===s.id).length}</small></a>`).join('')}</div>
+ ${D.home.length?`<div class="soc" style="justify-content:center;padding:0 5vw 50px">${D.home.map(b=>`<a class="pill" href="${esc(safe(b.url))}" target="_blank" rel="noopener"><span>${esc(b.icon||'🔗')}</span><b>${esc(b.label)}</b></a>`).join('')}</div>`:''}`}
+function card(p,s){if(s.type==='links')return `<a class="pill" href="${esc(safe(p.url))}" target="_blank" rel="noopener"><span>${esc(p.icon||'🔗')}</span><b>${esc(L(p.title))}</b></a>`;
+ const c=cu(p)||((p.file&&(p.file.mime||'').startsWith('image/'))?fu(p):''),cn=(s.cats.find(x=>x.id===p.cat)||{}).name||'';
+ return `<article class="card" data-id="${p.id}"><div class="th">${c?`<img src="${c}" alt="">`:`<div class="ph">${esc(s.icon||'📦')}</div>`}<span class="tag">${esc(cn)}</span></div><div class="cb"><h3>${esc(L(p.title))}</h3><p class="mu clamp">${esc(L(p.desc))}</p></div></article>`}
+function gd(s){const l=live().filter(p=>p.sec===s.id&&(cat==='all'||p.cat===cat)&&(L(p.title)+' '+L(p.desc)).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>s.type==='learn'?a.t-b.t:b.t-a.t);
+ $('#gd').innerHTML=l.map(p=>card(p,s)).join('')||`<p class="mu empty">${t('empty')}</p>`}
+function ch(s){$('#ch').innerHTML=[{id:'all',name:t('all')},...s.cats].map(c=>`<button class="chip${c.id===cat?' on':''}" data-k="${esc(c.id)}">${esc(c.name)}</button>`).join('')}
+function secv(s){app.innerHTML=`<div class="wrap"><h2>${esc(s.icon||'')} ${esc(sn(s))}</h2><div class="tools"><div class="chips" id="ch"></div><input id="q" placeholder="${t('search')}"></div><div id="gd" class="${s.type==='links'?'soc':'grid'}"></div></div>`;
+ $('#q').oninput=e=>{q=e.target.value;gd(s)};$('#ch').onclick=e=>{const b=e.target.closest('[data-k]');if(b){cat=b.dataset.k;ch(s);gd(s)}};ch(s);gd(s)}
+function view(p,s){const m=$('#m'),u=fu(p),c=cu(p),mi=(p.file&&p.file.mime)||'';let b;
+ if(s.type==='learn')b=(p.blocks||[]).map((k,i)=>k.t==='text'?`<p class="pre">${esc(L(k.v))}</p>`:`<div class="blk"><div class="bh"><span class="tag2">${esc(k.lang)}</span>${canRun(k)?`<button class="btn" data-run="${i}">▶ ${t('run')}</button>`:''}</div><textarea data-code="${i}" rows="${Math.min(14,String(k.v).split('\n').length+1)}" spellcheck="false">${esc(k.v)}</textarea>${canRun(k)?(k.lang==='python'?`<pre class="out" id="o${i}"></pre>`:`<iframe id="o${i}" sandbox="allow-scripts"></iframe>`):''}</div>`).join('');
+ else b=(mi.startsWith('video')?`<video src="${u}" controls playsinline></video>`:mi.startsWith('audio')?`<audio src="${u}" controls></audio>`:(c||mi.startsWith('image'))?`<img src="${c||u}" alt="">`:'')+`<p class="pre">${esc(L(p.desc))}</p><div class="row">${(p.buttons||[]).map(x=>`<a class="btn" href="${esc(safe(x.url))}" target="_blank" rel="noopener">${esc(x.label||t('open'))}</a>`).join('')}${u?`<a class="btn ghost" href="${u}" download="${esc(p.file.name)}">⬇ ${t('download')}</a>`:''}</div>`;
+ m.innerHTML=`<div class="mb"><div class="row" style="justify-content:space-between"><h3>${esc(L(p.title))}</h3><button class="ib" id="x">✕</button></div>${b}</div>`;m.classList.add('on');
+ const close=()=>{m.classList.remove('on');m.innerHTML=''};
+ m.onclick=e=>{if(e.target===m||e.target.id==='x')return close();const r=e.target.closest('[data-run]');if(!r)return;const i=+r.dataset.run,k=p.blocks[i],code=$(`[data-code="${i}"]`).value,o=$('#o'+i);k.lang==='python'?runPy(code,o):o.srcdoc=runDoc(k.lang,code)}}
+function route(){$('#m').classList.remove('on');$('#m').innerHTML='';cur=location.hash.slice(1)||'home';if(cur!=='home'&&!S(cur))cur='home';cat='all';q='';bar();const s=S(cur);s?secv(s):home()}
+app.onclick=e=>{const a=e.target.closest('.card');if(a){const p=D.items.find(x=>x.id===a.dataset.id);view(p,S(p.sec))}};
+$('#lg').onchange=e=>{lang=+e.target.value;LS.set('lang',lang);route()};
+$('#md').onclick=()=>{const th=Object.assign({m:'dark',c:'#0e8f4f'},LS.get('theme',{}));th.m=th.m==='dark'?'light':'dark';LS.set('theme',th);theme()};
+$('#cl').onclick=e=>{const b=e.target.closest('[data-c]');if(b){const th=Object.assign({m:'dark',c:'#0e8f4f'},LS.get('theme',{}));th.c=b.dataset.c;LS.set('theme',th);theme()}};
+addEventListener('hashchange',route);
+(async()=>{D=await loadData();document.title=D.name;$('#ft').textContent='© '+D.name+' · Building Tomorrow, Today.';route()})();
+</script></body></html>

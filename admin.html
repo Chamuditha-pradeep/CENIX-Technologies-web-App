@@ -1,0 +1,93 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CENIX Admin</title><meta name="robots" content="noindex"><link rel="stylesheet" href="style.css"></head><body>
+<div id="root"></div><div class="modal" id="m"></div><div id="toast"></div>
+<script src="config.js"></script><script src="shared.js"></script>
+<script>
+const root=$('#root'),m=$('#m'),NM=s=>L(s.name)||t(s.id)||s.id,LANGS=['html','css','javascript','python','java','c','sql','other'];
+const TYPES={cards:'Cards (apps, games, guides)',learn:'Lessons with code',media:'Media files',links:'Link buttons',url:'Menu link to a website'};
+let D,cur='';
+const R=(a,f)=>document.querySelectorAll(`[data-${a}]`).forEach(e=>e.onclick=()=>{f(e.dataset[a],e)});
+const err=e=>toast('Error: '+String(e.message||e).slice(0,70));
+const close=()=>{m.classList.remove('on');m.innerHTML=''};
+function login(){if(!cfgOK()){root.innerHTML=`<div class="lg"><div class="box" style="max-width:460px;text-align:left"><h2>Backend not set up yet</h2><p class="mu">Open <b>config.js</b> and paste your Supabase Project URL and anon key. Steps are in <b>SETUP.txt</b> (about 10 minutes).</p></div></div>`;return}
+ root.innerHTML=`<div class="lg"><div class="box"><div style="font-size:2.4rem">🔐</div><h2>CENIX Admin</h2><input id="em" type="email" placeholder="Email" autocomplete="username"><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button class="btn" id="go">Login</button><a class="mu" href="index.html">← Site</a></div></div>`;
+ const go1=async()=>{try{await signIn($('#em').value.trim(),$('#pw').value);go()}catch(e){toast('Wrong email or password')}};
+ $('#go').onclick=go1;$('#pw').onkeydown=e=>{if(e.key==='Enter')go1()}}
+async function go(k){await ensure();if(!tok)return login();try{D=await loadData(true)}catch(e){return err(e)}
+ cur=k||cur||(D.sections[0]&&D.sections[0].id)||'sx';
+ root.innerHTML=`<div class="adm"><aside class="side"><div class="bl">CENIX ADMIN</div>${D.sections.map(s=>`<button class="nv${s.id===cur?' on':''}" data-n="${s.id}">${esc(s.icon||'')} ${esc(NM(s))}</button>`).join('')}<button class="nv${cur==='sx'?' on':''}" data-n="sx">🧭 Sections &amp; buttons</button><button class="nv${cur==='st'?' on':''}" data-n="st">⚙️ Settings</button><a class="nv" href="index.html" target="_blank">🌐 View site</a></aside><section class="am" id="view"></section></div>`;
+ R('n',go);const s=D.sections.find(x=>x.id===cur);s?secv(s):cur==='sx'?sx():st()}
+const saveSecs=async()=>{try{await saveSite('sections',D.sections);go()}catch(e){err(e)}};
+function secv(s){const l=D.items.filter(p=>p.sec===s.id).sort((a,b)=>b.t-a.t);
+ $('#view').innerHTML=`<h2>${esc(s.icon||'')} ${esc(NM(s))}</h2><div class="pn"><b>Categories</b> <span class="mu">(rename or add category buttons)</span><div style="display:grid;gap:8px;margin:10px 0;max-width:420px">${s.cats.map((c,i)=>`<div class="row"><input data-cn="${i}" value="${esc(c.name)}"><button class="ib" data-rc="${i}">✕</button></div>`).join('')}</div><div class="row"><input id="nc" placeholder="New category name" style="max-width:260px"><button class="btn" id="ac">Add category</button></div></div>
+ ${s.type!=='url'?`<div class="row" style="margin:14px 0"><button class="btn" id="ad">＋ Add item</button></div>`:'<p class="mu">This is a menu link. Change its link in Sections &amp; buttons.</p>'}
+ ${s.type==='media'?`<label class="dz" id="dz"><input type="file" id="fi" multiple hidden>☁️ Drag &amp; drop files to add quickly<br><span class="mu">edit titles afterwards</span></label>`:''}
+ <div class="pn">${l.map(p=>`<div class="li"><span>${esc(p.icon||'')} <b>${esc(L(p.title))}</b> <span class="mu">${esc((s.cats.find(c=>c.id===p.cat)||{}).name||'')}${p.file?' · '+sz(p.file.size||0):''}</span></span><span class="ac"><button class="ib" data-p="${p.id}">${p.pub===false?'🚫':'👁'}</button><button class="ib" data-e="${p.id}">✎</button><button class="ib" data-d="${p.id}">🗑</button></span></div>`).join('')||'<p class="mu">No items yet.</p>'}</div>`;
+ document.querySelectorAll('[data-cn]').forEach(i=>i.onchange=()=>{s.cats[i.dataset.cn].name=i.value.trim()||s.cats[i.dataset.cn].name;saveSecs()});
+ R('rc',i=>{if(confirm('Remove this category?')){s.cats.splice(i,1);saveSecs()}});
+ $('#ac').onclick=()=>{const v=$('#nc').value.trim();if(v){s.cats.push({id:'c'+Date.now().toString(36),name:v});saveSecs()}};
+ if($('#ad'))$('#ad').onclick=()=>form(s);
+ R('e',id=>form(s,id));
+ R('p',async id=>{const p=D.items.find(x=>x.id===id);p.pub=p.pub===false;try{await saveItem(p);go()}catch(e){err(e)}});
+ R('d',async id=>{if(!confirm('Delete this item?'))return;try{await delItem(id);go()}catch(e){err(e)}});
+ const dz=$('#dz');if(dz){const guess=f=>{const n=f.type,w=x=>(s.cats.find(c=>c.name.toLowerCase().startsWith(x))||s.cats[0]||{}).id;return n.startsWith('video')?w('video'):n.startsWith('audio')?w('music'):n==='image/png'?w('png'):n.startsWith('image')?w('photo'):w('')};
+  const add=async fs=>{try{toast('Uploading…');for(const f of fs){const id=crypto.randomUUID(),path=await upload(id,f);await saveItem({id,sec:s.id,pub:true,t:Date.now(),cat:guess(f),title:{en:f.name.replace(/\.[^.]+$/,'')},desc:{},file:{path,name:f.name,mime:f.type,size:f.size}})}toast('Added ✓');go()}catch(e){err(e)}};
+  $('#fi').onchange=e=>add(e.target.files);
+  ['dragenter','dragover'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.add('over')}));
+  ['dragleave','drop'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.remove('over')}));
+  dz.addEventListener('drop',e=>add(e.dataTransfer.files))}}
+function form(s,id){const old=D.items.find(x=>x.id===id),ty=s.type;
+ const st=old?JSON.parse(JSON.stringify(old)):{id:crypto.randomUUID(),sec:s.id,pub:true,t:Date.now(),title:{},desc:{},blocks:[],buttons:[]};
+ st.blocks=st.blocks||[];st.buttons=st.buttons||[];st.cat=st.cat||(s.cats[0]&&s.cats[0].id);let fl=1;const files={};
+ const lv=k=>esc((st[k]||{})[LC[fl]]),ctl=i=>`<span><button class="ib" data-a="u" data-i="${i}">▲</button><button class="ib" data-a="d" data-i="${i}">▼</button><button class="ib" data-a="rm" data-i="${i}">✕</button></span>`;
+ const blk=(b,i)=>b.t==='text'?`<div class="blk"><div class="bh"><span class="tag2">Text · ${LN[fl]}</span>${ctl(i)}</div><textarea data-bt="${i}" data-lg="${LC[fl]}" rows="3">${esc((b.v||{})[LC[fl]])}</textarea></div>`
+  :`<div class="blk"><div class="bh"><span><select data-bg="${i}">${LANGS.map(g=>`<option${g===b.lang?' selected':''}>${g}</option>`).join('')}</select> <label><input type="checkbox" data-br="${i}"${b.run!==0?' checked':''}> Run button</label></span>${ctl(i)}</div><textarea data-bc="${i}" rows="5" spellcheck="false">${esc(b.v)}</textarea></div>`;
+ const draw=()=>{m.innerHTML=`<div class="mb"><div class="row" style="justify-content:space-between"><h3>${old?'Edit':'Add'} · ${esc(NM(s))}</h3><select id="fl" style="width:auto">${LN.map((n,i)=>`<option value="${i}"${i===fl?' selected':''}>🌐 ${n}</option>`).join('')}</select></div>
+ <div class="fl"><label>Title (${LN[fl]})</label><input data-loc="title" data-lg="${LC[fl]}" value="${lv('title')}"></div>
+ <div class="fl"><label>Category</label><select data-k="cat">${s.cats.map(c=>`<option value="${esc(c.id)}"${c.id===st.cat?' selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+ ${ty==='links'?`<div class="fl"><label>Icon (emoji)</label><input data-k="icon" value="${esc(st.icon)}"></div><div class="fl"><label>Link (https://…)</label><input data-k="url" value="${esc(st.url)}"></div>`:''}
+ ${ty==='media'||ty==='cards'?`<div class="fl"><label>Description (${LN[fl]})</label><textarea data-loc="desc" data-lg="${LC[fl]}" rows="3">${lv('desc')}</textarea></div><div class="fl"><label>File for download${st.file?' (saved: '+esc(st.file.name)+')':''}</label><input type="file" data-f="file"></div>`:''}
+ ${ty==='cards'?`<div class="fl"><label>Cover image${st.cover?' (saved)':''}</label><input type="file" accept="image/*" data-f="cover"></div><div class="fl"><label>Buttons (name + link)</label>${st.buttons.map((b,i)=>`<div class="row"><input data-bl="${i}" placeholder="Button name" value="${esc(b.label)}"><input data-bu="${i}" placeholder="https://…" value="${esc(b.url)}"><button class="ib" data-a="rb" data-i="${i}">✕</button></div>`).join('')}<div><button class="btn ghost" data-a="ab">＋ Add button</button></div></div>`:''}
+ ${ty==='learn'?`<div class="fl"><label>Lesson content (text and code with Run)</label>${st.blocks.map(blk).join('')}<div class="row"><button class="btn ghost" data-a="at">＋ Text</button><button class="btn ghost" data-a="ac">＋ Code</button></div></div>`:''}
+ <div class="row"><button class="btn ghost" data-a="x">Cancel</button><button class="btn" data-a="sv">Save</button></div></div>`};
+ const h=e=>{const el=e.target,d=el.dataset;
+  if(d.loc)(st[d.loc]=st[d.loc]||{})[d.lg]=el.value;else if(d.k)st[d.k]=el.value;else if(d.f)files[d.f]=el.files[0];
+  else if(d.bl!==undefined)st.buttons[d.bl].label=el.value;else if(d.bu!==undefined)st.buttons[d.bu].url=el.value;
+  else if(d.bt!==undefined){const b=st.blocks[d.bt];b.v=b.v||{};b.v[d.lg]=el.value}else if(d.bc!==undefined)st.blocks[d.bc].v=el.value;
+  else if(d.bg!==undefined)st.blocks[d.bg].lang=el.value;else if(d.br!==undefined)st.blocks[d.br].run=el.checked?1:0;
+  else if(el.id==='fl'&&+el.value!==fl){fl=+el.value;draw()}};
+ const save=async()=>{if(!Object.values(st.title||{}).some(v=>v&&v.trim()))return toast('Enter a title (any language)');
+  try{toast('Saving…');for(const k of['file','cover'])if(files[k]){const path=await upload(st.id,files[k]);if(k==='file')st.file={path,name:files[k].name,mime:files[k].type,size:files[k].size};else st.cover=path}
+   st.buttons=st.buttons.filter(b=>b.url&&b.url.trim());await saveItem(st);close();toast('Saved ✓');go()}catch(e){err(e)}};
+ m.oninput=h;m.onchange=h;
+ m.onclick=e=>{if(e.target===m)return close();const a=e.target.closest('[data-a]');if(!a)return;const i=+a.dataset.i,A=a.dataset.a,B=st.blocks;
+  if(A==='x')return close();if(A==='sv')return save();
+  if(A==='ab')st.buttons.push({label:'',url:''});else if(A==='rb')st.buttons.splice(i,1);
+  else if(A==='at')B.push({t:'text',v:{}});else if(A==='ac')B.push({t:'code',lang:'html',run:1,v:''});else if(A==='rm')B.splice(i,1);
+  else if(A==='u'&&i>0)B.splice(i-1,2,B[i],B[i-1]);else if(A==='d'&&i<B.length-1)B.splice(i,2,B[i+1],B[i]);
+  draw()};
+ draw();m.classList.add('on')}
+function names(i){const s=D.sections[i],cur0=s.name||{},def=TR[s.id];
+ m.innerHTML=`<div class="mb"><h3>Button name in every language</h3>${LN.map((n,k)=>`<div class="fl"><label>${n}</label><input data-ln="${LC[k]}" value="${esc(cur0[LC[k]]||(def?def[k]:''))}"></div>`).join('')}<div class="row"><button class="btn ghost" data-a="x">Cancel</button><button class="btn" data-a="sv">Save</button></div></div>`;m.classList.add('on');
+ m.onclick=e=>{if(e.target===m)return close();const a=e.target.closest('[data-a]');if(!a)return;if(a.dataset.a==='x')return close();
+  const o={};document.querySelectorAll('[data-ln]').forEach(x=>{if(x.value.trim())o[x.dataset.ln]=x.value.trim()});s.name=o;close();saveSecs()};m.oninput=m.onchange=null}
+function sx(){const mv=(i,d)=>{const a=D.sections,j=i+d;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];saveSecs()};
+ $('#view').innerHTML=`<h2>🧭 Sections &amp; buttons</h2><div class="pn"><b>Menu buttons</b>${D.sections.map((s,i)=>`<div class="li"><span><input data-si="${i}" value="${esc(s.icon)}" style="width:64px;display:inline-block"> <b>${esc(NM(s))}</b> <span class="mu">${TYPES[s.type]}${s.type==='url'?' · '+esc(s.url):''}</span></span><span class="ac"><button class="ib" data-nm="${i}" title="Names in all languages">🌐</button><button class="ib" data-mu="${i}">▲</button><button class="ib" data-md="${i}">▼</button><button class="ib" data-dl="${i}">🗑</button></span></div>`).join('')}</div>
+ <div class="pn"><b>Add a new menu button</b><div class="row" style="margin-top:10px"><select id="nt" style="width:auto">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><input id="ni" placeholder="Icon" style="width:70px"><input id="nn" placeholder="Name (English)" style="flex:1;min-width:140px"><input id="nu" placeholder="Website link (only for menu link)" style="flex:1;min-width:140px"><button class="btn" id="na">Add</button></div></div>
+ <div class="pn"><b>Home page buttons</b><div id="hb" style="display:grid;gap:8px;margin:10px 0">${D.home.map((b,i)=>`<div class="row"><input data-hi="${i}" value="${esc(b.icon)}" placeholder="Icon" style="width:70px"><input data-hl="${i}" value="${esc(b.label)}" placeholder="Name" style="flex:1"><input data-hu="${i}" value="${esc(b.url)}" placeholder="https://…" style="flex:2"><button class="ib" data-hr="${i}">✕</button></div>`).join('')}</div><div class="row"><button class="btn ghost" id="ha">＋ Add button</button><button class="btn" id="hs">Save home buttons</button></div></div>`;
+ document.querySelectorAll('[data-si]').forEach(i=>i.onchange=()=>{D.sections[i.dataset.si].icon=i.value;saveSecs()});
+ R('nm',names);R('mu',i=>mv(+i,-1));R('md',i=>mv(+i,1));R('dl',i=>{if(confirm('Remove this menu button? Its items stay saved but hidden.')){D.sections.splice(i,1);saveSecs()}});
+ $('#na').onclick=()=>{const n=$('#nn').value.trim(),ty=$('#nt').value;if(!n)return toast('Enter a name');if(ty==='url'&&!$('#nu').value.trim())return toast('Enter the website link');
+  D.sections.push({id:'s'+Date.now().toString(36),type:ty,icon:$('#ni').value||'⭐',name:{en:n},cats:ty==='url'?[]:[{id:'general',name:'General'}],url:ty==='url'?$('#nu').value.trim():undefined});saveSecs()};
+ const rd=()=>{D.home=[...document.querySelectorAll('[data-hi]')].map(e=>({icon:e.value,label:$(`[data-hl="${e.dataset.hi}"]`).value,url:$(`[data-hu="${e.dataset.hi}"]`).value}))};
+ $('#ha').onclick=()=>{rd();D.home.push({icon:'🔗',label:'',url:''});sx()};R('hr',i=>{rd();D.home.splice(i,1);sx()});
+ $('#hs').onclick=async()=>{rd();D.home=D.home.filter(b=>b.label&&b.url);try{await saveSite('home',D.home);toast('Saved ✓');go()}catch(e){err(e)}}}
+function st(){$('#view').innerHTML=`<h2>⚙️ Settings</h2><div class="pn" style="max-width:440px;display:grid;gap:10px"><div class="fl"><label>Site name</label><input id="sn" value="${esc(D.name)}"></div><button class="btn" id="ss">Save</button></div>
+ <div class="pn" style="max-width:440px;display:grid;gap:10px"><div class="fl"><label>New admin password (min 8 characters)</label><input id="np" type="password" autocomplete="new-password"></div><button class="btn" id="sp">Change password</button></div>
+ <div class="pn" style="max-width:440px;display:grid;gap:10px"><b>Starter content</b><span class="mu">Saves the default menu buttons and 4 sample lessons (HTML, CSS, JavaScript, Python).</span><button class="btn ghost" id="sd">Add starter content</button></div><button class="btn red" id="lo">Logout</button>`;
+ $('#ss').onclick=async()=>{try{await saveSite('cfg',{name:$('#sn').value.trim()||D.name});toast('Saved ✓')}catch(e){err(e)}};
+ $('#sp').onclick=async()=>{const v=$('#np').value;if(v.length<8)return toast('At least 8 characters');try{await ensure();const r=await fetch(SB.url+'/auth/v1/user',{method:'PUT',headers:hdr({'Content-Type':'application/json'}),body:JSON.stringify({password:v})});if(!r.ok)throw new Error(await r.text());toast('Password changed ✓');$('#np').value=''}catch(e){err(e)}};
+ $('#sd').onclick=async()=>{try{await saveSite('sections',D.sections);for(const s of SEED)if(!D.items.some(x=>x.id===s.id))await saveItem(s);toast('Added ✓');go('learn')}catch(e){err(e)}};
+ $('#lo').onclick=()=>{signOut();login()}}
+login();(async()=>{if(cfgOK()&&tok){await ensure();if(tok)go()}})();
+</script></body></html>
